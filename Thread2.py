@@ -17,8 +17,8 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 # urllib3.disable_warnings()
 # requests.packages.urllib3.disable_warnings()
-# import ssl
-# ssl._create_default_https_context = ssl._create_unverified_context
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 class artobject():
     def __init__(self, parent=None):
         self.filename = ""
