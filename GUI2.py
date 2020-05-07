@@ -1,7 +1,8 @@
 
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QWidget, QApplication, QLabel
+from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QMessageBox
 import pickle
+import uuid
 import os
 from PyQt5.QtGui import QImage, QFont
 from PyQt5 import QtCore
@@ -11,11 +12,29 @@ from os import startfile
 import sys
 from PyQt5.QtWidgets import *
 from Thread2 import getartThread, updateurlsThread, saveachethread,translatethread,savefilethread,artobject,updateurlsThreadsingle
-os.environ['REQUESTS_CA_BUNDLE'] = os.path.join(os.path.dirname(sys.argv[0]), 'cacert.pem')
+from activationwin import activationwindow
 
+from PyQt5.QtGui import QIntValidator, QDoubleValidator, QRegExpValidator
+os.environ['REQUESTS_CA_BUNDLE'] = os.path.join(os.path.dirname(sys.argv[0]), 'cacert.pem')
+class Logger(object):
+    def __init__(self, filename='default.log', stream=sys.stdout):
+        self.terminal = stream
+        self.log = open(filename, 'w')
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.terminal.flush()
+        self.log.write(message)
+        self.log.flush()
+
+    def flush(self):
+        pass
+sys.stdout = Logger('process.log', sys.stdout)
+sys.stderr = Logger('errorlog.log', sys.stderr)
 
 class main(QMainWindow):
     # 图片改变信号
+
     imagechangedSignal = QtCore.pyqtSignal(object)
     def __init__(self, parent=None):
         super(main, self).__init__(parent)
@@ -31,7 +50,7 @@ class main(QMainWindow):
         # self.progressBar.setVisible(False)
         # self.statusBar().addPermanentWidget(self.progressBar)
         # self.setStyleSheet("background-color:rgb(198,47,47,115);")
-        self.move(20, 10)
+        # self.move(20, 10)
         self.grid = QGridLayout()
         # 文件名输入框
         # self.textedit = QTextEdit()
@@ -58,6 +77,7 @@ class main(QMainWindow):
         self.artlist=[]
         self.time = 0
         self.page=1
+        self.timeout=50
         self.trans=True
         self.updateurling=False
         self.transconnect=True
@@ -80,10 +100,17 @@ class main(QMainWindow):
         self.grid.addWidget(self.titlechinesetextedit, 1, 0, 1, 10)
 
         self.artlistlabel=QLabel("检索列表")
-        self.grid.addWidget(self.artlistlabel, 2, 0, 1, 5)
+        self.grid.addWidget(self.artlistlabel, 2, 0, 1, 1)
+
+
 
         self.artinflabel=QLabel("文章详细信息")
         self.grid.addWidget(self.artinflabel, 2, 5, 1, 5)
+
+        self.transcheck = QCheckBox("检索时翻译标题")
+        self.transcheck.stateChanged.connect(self.transcheckselect)
+        self.transcheck.setChecked(self.trans)
+        self.grid.addWidget(self.transcheck, 2, 9, 1, 1)
 
         self.artlistTable = QTableWidget()
         # self.artlistTable = QTableWidget()
@@ -212,10 +239,21 @@ class main(QMainWindow):
         self.updataurlsbutton.clicked.connect(self.updateurls)
         self.grid.addWidget(self.updataurlsbutton, 5, 9, 1, 1)
 
-        self.transcheck = QCheckBox("检索时翻译标题")
-        self.transcheck.stateChanged.connect(self.transcheckselect)
-        self.transcheck.setChecked(self.trans)
-        self.grid.addWidget(self.transcheck, 7, 7, 1, 1)
+        self.timeoutlabel = QLabel("超时时间(s):")
+        self.grid.addWidget(self.timeoutlabel, 7, 7, 1, 1)
+
+        pDoubleValidator = QDoubleValidator(self)
+        pDoubleValidator.setRange(0, 100)
+        pDoubleValidator.setNotation(QDoubleValidator.StandardNotation)
+        pDoubleValidator.setDecimals(2)
+
+        self.timeoutedit = QLineEdit()
+        self.timeoutedit.setValidator(pDoubleValidator)
+        self.timeoutedit.setText(str(self.timeout))
+        # self.titletextedit.returnPressed.connect(lambda: self.inLineEditfinished())
+        self.timeoutedit.returnPressed.connect(self.timeouteditPressed)
+        self.grid.addWidget(self.timeoutedit, 7, 8, 1, 2)
+
         #
         # self.codelabel=QLabel()
         # self.grid.addWidget(self.transcheck, 8, 1, 1, 10)
@@ -225,6 +263,71 @@ class main(QMainWindow):
         self.setCentralWidget(self.widget)
         self.updateurls()
         self.loadache()
+
+
+    def getauthority(self):
+        path="act.data"
+        if os.path.exists(path):
+            mac = uuid.UUID(int=uuid.getnode()).hex[-12:]
+            mac = "".join([mac[e:e + 2] for e in range(0, 11, 2)])
+            mac1 = str((int(mac[0:2], 16) * 1218) % (256))
+            mac2 = str((int(mac[2:4], 16) * 1219) % (256))
+            mac3 = str((int(mac[4:6], 16) * 1220) % (256))
+            mac4 = str((int(mac[6:8], 16) * 1221) % (256))
+            mac5 = str((int(mac[8:10], 16) * 1222) % (256))
+            mac6 = str((int(mac[10:12], 16) * 1223) % (256))
+            macfinall = mac1 + mac2 + mac3 + mac4 + mac5 + mac6
+            try:
+                with open(path, 'rb') as f:
+                    key = pickle.load(f)
+                    print("key",key)
+                    if key == macfinall:
+                        return
+                    else:
+                        raise IndexError("权限信息与当前设备不匹配")
+
+            except Exception as a:
+                reply = QMessageBox()
+                # reply.close.connect(self.close)
+                reply.setWindowTitle('警告！')
+                reply.setText("授权密钥与当前设备不匹配！")
+                reply.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                buttonY = reply.button(QMessageBox.Yes)
+                buttonY.setText('重新激活')
+                buttonN = reply.button(QMessageBox.No)
+                buttonN.setText('退出')
+                reply.exec_()
+                if reply.clickedButton() == buttonY:
+                    self.hide()
+                    self.activewin = activationwindow()
+                    self.activewin.succeedSignal.connect(self.succeedshow)
+                    self.activewin.show()
+                    # return
+                else:
+                    sys.exit()
+        else:
+            reply = QMessageBox()
+            # reply.close.connect(self.close)
+            reply.setWindowTitle('未授权')
+            reply.setText("此软件未注册，请注册或退出！")
+            reply.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            buttonY = reply.button(QMessageBox.Yes)
+            buttonY.setText('激活')
+            buttonN = reply.button(QMessageBox.No)
+            buttonN.setText('退出')
+            reply.exec_()
+            if reply.clickedButton() == buttonY:
+                self.hide()
+                self.activewin=activationwindow()
+                self.activewin.succeedSignal.connect(self.succeedshow)
+                self.activewin.show()
+                # return
+            else:
+                sys.exit()
+
+    def succeedshow(self):
+        self.show()
+
 
     def prebuttonclick(self):
         if self.page==1:
@@ -354,12 +457,12 @@ class main(QMainWindow):
         self.urls=dict()
         # self.channellistTable.removeColumn(2)
 
-        self.updategoogleurlsthread = updateurlsThreadsingle("https://translate.google.cn/")
+        self.updategoogleurlsthread = updateurlsThreadsingle("https://translate.google.cn/",self.timeout)
         self.updategoogleurlsthread.messageSingle.connect(self.statusBar().showMessage)
         self.updategoogleurlsthread.enddingSingle.connect(self.dateurlsendding)
         self.updategoogleurlsthread.start()
 
-        self.updatecrossrefurlsthread = updateurlsThreadsingle("https://www.crossref.org/")
+        self.updatecrossrefurlsthread = updateurlsThreadsingle("https://www.crossref.org/",self.timeout)
         self.updatecrossrefurlsthread.messageSingle.connect(self.statusBar().showMessage)
         self.updatecrossrefurlsthread.enddingSingle.connect(self.dateurlsendding)
         self.updatecrossrefurlsthread.start()
@@ -369,11 +472,11 @@ class main(QMainWindow):
             self.channellistTable.item(i, 1).setBackground(QtGui.QColor(233, 255, 80))
         names = locals()
         for i,url in enumerate(self.allurls):
-            exec('self.updateurlsthread{} = updateurlsThreadsingle(url)'.format(i))
+            exec('self.updateurlsthread{} = updateurlsThreadsingle(url,self.timeout)'.format(i))
             exec('self.updateurlsthread{}.messageSingle.connect(self.statusBar().showMessage)'.format(i))
             exec('self.updateurlsthread{}.enddingSingle.connect(self.dateurlsendding)'.format(i))
             exec('self.updateurlsthread{}.start()'.format(i))
-            # self.updateurlsthread = updateurlsThreadsingle(url)
+            # self.updateurlsthread = updateurlsThreadsingle(url,self.timeout)
             # self.updateurlsthread.messageSingle.connect(self.statusBar().showMessage)
             # self.updateurlsthread.enddingSingle.connect(self.dateurlsendding)
             # self.updateurlsthread.start()
@@ -441,6 +544,12 @@ class main(QMainWindow):
         self.savefilethread.progressvisualSingle.connect(self.progressBar.setVisible)
         self.savefilethread.codeimageSingle.connect(self.showcode)
         self.savefilethread.start()
+
+    def timeouteditPressed(self):
+        self.timeout=float(self.timeoutedit.text())
+        self.statusBar().showMessage("线路测试超时时间已更新为 " + str(self.timeout) + "s" )
+
+
 
     def showcode(self,image):
         # res = requests.get(image)
@@ -530,8 +639,22 @@ class main(QMainWindow):
             print("已加载缓存信息！")
 
 
+class Logger(object):
+    def __init__(self, filename='default.log', stream=sys.stdout):
+        self.terminal = stream
+        self.log = open(filename, 'w')
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        pass
+sys.stdout = Logger('process.log', sys.stdout)
+sys.stderr = Logger('errorlog.log', sys.stderr)
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ui = main()
     ui.show()
+    ui.getauthority()
     sys.exit(app.exec_())

@@ -102,9 +102,10 @@ class updateurlsThread(QThread):
 class updateurlsThreadsingle(QThread):
     messageSingle = QtCore.pyqtSignal(str)
     enddingSingle = QtCore.pyqtSignal(str,float)
-    def __init__(self,url):
+    def __init__(self,url,timeout):
         self.time=9999
         self.url=url
+        self.timeout=timeout
         self.ableurls=[]
         super(updateurlsThreadsingle, self).__init__()
     def run(self):
@@ -126,30 +127,15 @@ class updateurlsThreadsingle(QThread):
 
         }
 
-        urls = [
-            "https://sci-hub.tw",
-            "https://sci-hub.sci-hub.hk",
-            "https://sci-hub.hk",
-            "https://sci-hub.la",
-            "https://sci-hub.mn",
-            "https://sci-hub.name",
-            "https://sci-hub.is",
-            "https://sci-hub.tv",
-            "https://sci-hub.ws",
-            "https://www.sci-hub.cn",
-
-            "https://sci-hub.sci-hub.tw",
-            "https://sci-hub.sci-hub.mn",
-            "https://sci-hub.sci-hub.tv"]
 
 
         print("正在更新线路...")
         try:
             if self.url in ["https://www.crossref.org/","https://translate.google.cn/"]:
-                currentPag_html = requests.get(self.url, headers=headers, timeout=50,verify=False)  # 访问该网站
+                currentPag_html = requests.get(self.url, headers=headers, timeout=self.timeout,verify=False)  # 访问该网站
             else:
                 testurldata={"request": "Quantum mechanics and hidden variables: A test of Bell's inequality by the measurement of the spin correlation in low-energy proton-proton scattering"}
-                currentPag_html = requests.post(self.url, data=testurldata, verify=False,headers=headers, timeout=50)
+                currentPag_html = requests.post(self.url, data=testurldata, verify=False,headers=headers, timeout=self.timeout)
                 main_html = currentPag_html.text
                 soup = BeautifulSoup(main_html, 'html.parser')
                 pdfurl = soup.find_all('iframe')
@@ -204,21 +190,6 @@ class getartThread(QThread):
             "http": "http://49.86.181.35:9999",
             # "https": "https://221.228.17.172:8181",
             }
-
-        urls = [
-            "https://sci-hub.tw",
-            "https://sci-hub.sci-hub.tw",
-            "https://sci-hub.hk",
-            "https://sci-hub.la",
-            "https://sci-hub.mn",
-            "https://sci-hub.name",
-            "https://sci-hub.is",
-            "https://sci-hub.tv",
-            "https://sci-hub.ws",
-            "https://www.sci-hub.cn",
-            "https://sci-hub.sci-hub.hk",
-            "https://sci-hub.sci-hub.mn",
-            "https://sci-hub.sci-hub.tv"]
 
         self.messageSingle.emit("正在请求数据...")
         try:
@@ -393,10 +364,6 @@ class savefilethread(QThread):
                 except Exception as a:
                     pass
 
-
-
-
-
 class saveachethread(QThread):
     messageSingle = QtCore.pyqtSignal(str)
     enddingSingle = QtCore.pyqtSignal(list)
@@ -411,13 +378,23 @@ class saveachethread(QThread):
         with open(self.achepath, "wb") as file:
             pickle.dump(self.arts, file, True)
 
-
 class translatethread(QThread):
     messageSingle = QtCore.pyqtSignal(str)
     enddingSingle = QtCore.pyqtSignal(str)
     def __init__(self,enstr):
         self.enstr = enstr
         super(translatethread, self).__init__()
+    def run(self):
+        translator = Translator()
+        chineseword=translator.translate(self.enstr, dest='zh-CN').text
+        self.enddingSingle.emit(chineseword)
+
+class getauthoritythread(QThread):
+    messageSingle = QtCore.pyqtSignal(str)
+    enddingSingle = QtCore.pyqtSignal(str)
+    def __init__(self,enstr):
+        self.enstr = enstr
+        super(getauthoritythread, self).__init__()
     def run(self):
         translator = Translator()
         chineseword=translator.translate(self.enstr, dest='zh-CN').text
