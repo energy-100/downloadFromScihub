@@ -1,18 +1,15 @@
 
 
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QMessageBox
+from PyQt5.QtWidgets import QWidget,  QLabel
 import pymysql
 import pickle
 import uuid
 from itertools import chain
-import os
 import datetime
-from PyQt5.QtGui import QImage, QFont
+from PyQt5.QtGui import QFont
 from PyQt5 import QtCore
 import os
-from PyQt5 import QtGui, QtWidgets
-from os import startfile
 import sys
 from PyQt5.QtWidgets import *
 class main(QMainWindow):
