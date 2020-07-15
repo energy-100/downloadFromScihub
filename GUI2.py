@@ -11,7 +11,7 @@ from PyQt5 import QtGui, QtWidgets
 from os import startfile
 import sys
 from PyQt5.QtWidgets import *
-from Thread2 import getartThread, updateurlsThread, saveachethread,translatethread,savefilethread,artobject,updateurlsThreadsingle
+from Thread2 import getartThread, updateurlsThread, saveachethread,translatethread,savefilethread,artobject,updateurlsThreadsingle,extractThread
 from activationwin import activationwindow
 
 from PyQt5.QtGui import QIntValidator, QDoubleValidator, QRegExpValidator
@@ -153,7 +153,7 @@ class main(QMainWindow):
 
         self.downloadedartlistTable = QTableWidget()
         # self.downloadedartlistTable = QTableWidget()
-        self.downloadedartlistTable.setColumnCount(3)
+        self.downloadedartlistTable.setColumnCount(5)
         self.downloadedartlistTable.setRowCount(0)
         self.downloadedartlistTable.doubleClicked.connect(self.downloadedartlistTabledoubleclicked)
         self.downloadedartlistTable.clicked.connect(self.downloadedartlistTableclicked)
@@ -166,7 +166,7 @@ class main(QMainWindow):
         self.downloadedartlistTable.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)  # 一列也可以滚动
         self.downloadedartlistTable.setDragDropMode(QAbstractItemView.InternalMove)
         # self.downloadedartlistTable.setVerticalHeaderLabels(["论文名称"])
-        self.downloadedartlistTable.setHorizontalHeaderLabels(["论文名称", "文件路径", "保存时间"])
+        self.downloadedartlistTable.setHorizontalHeaderLabels(["论文名称", "文本识别", "文本翻译", "文件路径", "保存时间"])
         self.grid.addWidget(self.downloadedartlistTable, 6, 0, 1, 7)
 
         self.artdownloadlabel=QLabel("线路信息")
@@ -410,13 +410,31 @@ class main(QMainWindow):
 
     def downloadedartlistTabledoubleclicked(self):
         print("self.fileindex:", self.downloadedartlistTable.currentIndex().row())
-        index = self.downloadedartlistTable.currentIndex().row()
-        filepath = self.arts[index].allpath
-        if os.path.exists(filepath):
-            self.statusBar().showMessage("正在打开文件--"+self.arts[index].title)
-            os.startfile(filepath)
-        else:
-            self.statusBar().showMessage("文件已被删除，请重新下载！")
+        rowindex = self.downloadedartlistTable.currentIndex().row()
+        colindex = self.downloadedartlistTable.currentIndex().column()
+        title=self.arts[rowindex].title
+        if colindex==0:
+            filepath = self.arts[rowindex].allpath
+            if os.path.exists(filepath):
+                self.statusBar().showMessage("正在打开文件--"+title)
+                os.startfile(filepath)
+            else:
+                self.statusBar().showMessage("文件已被删除，请重新下载！")
+        elif colindex==1:
+            if self.arts[rowindex].extractpath=="":
+                self.translatethread=extractThread(self.arts[rowindex])
+                self.translatethread.messageSingle.connect(self.statusBar().showMessage)
+                self.translatethread.progressSingle.connect(self.progressBar.setValue)
+                self.translatethread.progressvisualSingle.connect(self.progressBar.setVisible)
+                self.translatethread.enddingSingle.connect(lambda:self.savefileend())
+                self.translatethread.start()
+            else:
+                os.startfile(self.arts[rowindex].extractpath)
+                # self.statusBar().showMessage("正在打开文件--" + title)
+                # os.startfile(filepath)
+
+    # def extractending(self):
+    #     self.
 
     def downloadedartlistTableclicked(self):
         print("self.fileindex:", self.downloadedartlistTable.currentIndex().row())
@@ -569,11 +587,22 @@ class main(QMainWindow):
         self.downloadedartlistTable.clearContents()
         [self.arts.remove(art) for art in self.arts if not os.path.exists(art.allpath)]
         self.downloadedartlistTable.setRowCount(len(self.arts))
-        self.downloadedartlistTable.setColumnCount(3)
+        self.downloadedartlistTable.setColumnCount(5)
         for i in range(len(self.arts)):
+            # extractButton=QPushButton("提取")
+            # extractButton.clicked.connect(self.extractclicked)
+            # # transButton=QPushButton("提取")
             self.downloadedartlistTable.setItem(i, 0, QTableWidgetItem(str(self.arts[i].title)))
-            self.downloadedartlistTable.setItem(i, 1, QTableWidgetItem(str(self.arts[i].path)))
-            self.downloadedartlistTable.setItem(i, 2, QTableWidgetItem(str(self.arts[i].datastr)))
+            if self.arts[i].extractpath=="":
+                self.downloadedartlistTable.setItem(i, 1, QTableWidgetItem("识别"))
+            else:
+                self.downloadedartlistTable.setItem(i, 1, QTableWidgetItem("打开"))
+            if self.arts[i].transpath == "":
+                self.downloadedartlistTable.setItem(i, 2, QTableWidgetItem("翻译"))
+            else:
+                self.downloadedartlistTable.setItem(i, 2, QTableWidgetItem("打开"))
+            self.downloadedartlistTable.setItem(i, 3, QTableWidgetItem(str(self.arts[i].path)))
+            self.downloadedartlistTable.setItem(i, 4, QTableWidgetItem(str(self.arts[i].datastr)))
         self.saveache()
 
 

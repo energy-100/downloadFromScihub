@@ -9,6 +9,8 @@ import os
 import datetime
 import requests
 import urllib
+import PyPDF2
+from docx import Document
 import urllib3
 from googletrans import Translator
 from bs4 import BeautifulSoup
@@ -28,12 +30,15 @@ class artobject():
         self.datastr = ""
 
         self.title = ""
+        self.titlerecode = ""
         self.chinesetitle = ""
         self.extra = ""
         self.doi = ""
         self.authors = ""
         self.arturl = ""
         self.infrequesturl = ""
+        self.extractpath=""
+        self.transpath=""
 
 class updateurlsThread(QThread):
     messageSingle = QtCore.pyqtSignal(str)
@@ -165,6 +170,82 @@ class updateurlsThreadsingle(QThread):
         # if len(self.ableurls)>=1:
         #     return
         self.enddingSingle.emit(self.url,self.time)
+
+class extractThread(QThread):
+    messageSingle = QtCore.pyqtSignal(str)
+    enddingSingle = QtCore.pyqtSignal()
+    progressSingle = QtCore.pyqtSignal(int)
+    progressvisualSingle = QtCore.pyqtSignal(bool)
+    def __init__(self,art:artobject):
+        self.art=art
+        super(extractThread, self).__init__()
+    def run(self):
+        self.progressvisualSingle.emit(True)
+        self.progressSingle.emit(0)
+        self.messageSingle.emit("正在进行OCR识别...")
+        pdfFile = open(self.art.allpath, 'rb')
+        pdfReader = PyPDF2.PdfFileReader(pdfFile)
+        # print(pdfReader.getDocumentInfo())
+        # print(pdfReader.numPages)
+        content=""
+        for i in range(pdfReader.numPages):
+            content+=pdfReader.getPage(i).extractText()
+            self.progressSingle.emit(int((i+1)/pdfReader.numPages*100))
+        pdfFile.close()
+        document = Document()                          # 打开一个基于默认“模板”的空白文档
+        document.add_heading(self.art.title, 0)      # 添加标题
+        p = document.add_paragraph(content)
+        try:
+            path=self.art.path + "/" + self.art.titlerecode + ".docx"
+            document.save(path)
+        except PermissionError :
+            self.progressvisualSingle.emit(False)
+            self.messageSingle.emit("文件占用，请关闭后重试！")
+        except Exception as e:
+            self.messageSingle.emit("未知异常，请重试！("+str(e)+")")
+        self.art.extractpath=path
+        self.progressvisualSingle.emit(False)
+        self.messageSingle.emit("文本提取完成！")
+        self.enddingSingle.emit()
+
+class transThread(QThread):
+    messageSingle = QtCore.pyqtSignal(str)
+    enddingSingle = QtCore.pyqtSignal()
+    progressSingle = QtCore.pyqtSignal(int)
+    progressvisualSingle = QtCore.pyqtSignal(bool)
+    def __init__(self,art:artobject):
+        self.art=art
+        super(extractThread, self).__init__()
+    def run(self):
+        self.progressvisualSingle.emit(True)
+        self.progressSingle.emit(0)
+        self.messageSingle.emit("正在翻译...")
+        pdfFile = open(self.art.allpath, 'rb')
+        pdfReader = PyPDF2.PdfFileReader(pdfFile)
+        # print(pdfReader.getDocumentInfo())
+        # print(pdfReader.numPages)
+        content=""
+        for i in range(pdfReader.numPages):
+            content+=pdfReader.getPage(i).extractText()
+            self.progressSingle.emit(int((i+1)/pdfReader.numPages*100))
+        pdfFile.close()
+        document = Document()                          # 打开一个基于默认“模板”的空白文档
+        document.add_heading(self.art.title, 0)      # 添加标题
+        p = document.add_paragraph(content)
+        try:
+            path=self.art.path + "/" + self.art.titlerecode + ".docx"
+            document.save(path)
+        except PermissionError :
+            self.progressvisualSingle.emit(False)
+            self.messageSingle.emit("文件占用，请关闭后重试！")
+        except Exception as e:
+            self.messageSingle.emit("未知异常，请重试！("+str(e)+")")
+        self.art.extractpath=path
+        self.progressvisualSingle.emit(False)
+        self.messageSingle.emit("文本提取完成！")
+        self.enddingSingle.emit()
+
+
 
 class getartThread(QThread):
     messageSingle = QtCore.pyqtSignal(str)
@@ -343,6 +424,7 @@ class savefilethread(QThread):
             urllib.request.urlretrieve(pdfurl2, filepath,self.Schedule)
             self.progressvisualSingle.emit(False)
             self.art.filename = self.art.title+".pdf"
+            self.art.titlerecode = filename
             self.art.path = self.path
             self.art.allpath = filepath
             self.art.data = datetime.datetime.now()

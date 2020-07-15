@@ -20,7 +20,7 @@ class main(QMainWindow):
         super(main, self).__init__(parent)
         # todo:软件配置
         self.setFont(QFont("Microsoft YaHei", 12))
-        self.setWindowIcon(QIcon('logo.png'))
+        self.setWindowIcon(QIcon('active.png'))
         self.setWindowTitle('批量激活程序(有限版)')
         # self.setWindowIcon(QIcon('xyjk.png'))
         # self.progressBar = QProgressBar()
