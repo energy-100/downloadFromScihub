@@ -3,6 +3,7 @@ import sys
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5 import QtCore
+import traceback
 import re
 import pickle
 import os
@@ -10,6 +11,7 @@ import datetime
 import requests
 import urllib
 import PyPDF2
+import PyPDF4
 from docx import Document
 import urllib3
 from googletrans import Translator
@@ -21,6 +23,19 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 # requests.packages.urllib3.disable_warnings()
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
+
+
+import importlib, sys
+
+importlib.reload(sys)
+from pdfminer.pdfparser import PDFParser, PDFDocument
+from pdfminer.pdfdevice import PDFDevice
+from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
+from pdfminer.converter import PDFPageAggregator
+from pdfminer.layout import LTTextBoxHorizontal, LAParams
+from pdfminer.pdfinterp import PDFTextExtractionNotAllowed
+# from pdfminer.pdfpage import PDFPage
+
 class artobject():
     def __init__(self, parent=None):
         self.filename = ""
@@ -184,16 +199,69 @@ class extractThread(QThread):
         self.progressSingle.emit(0)
         self.messageSingle.emit("正在进行OCR识别...")
         pdfFile = open(self.art.allpath, 'rb')
-        pdfReader = PyPDF2.PdfFileReader(pdfFile)
+        # pdfReader = PyPDF4.PdfFileReader(pdfFile)
         # print(pdfReader.getDocumentInfo())
         # print(pdfReader.numPages)
         content=""
-        for i in range(pdfReader.numPages):
-            content+=pdfReader.getPage(i).extractText()
-            self.progressSingle.emit(int((i+1)/pdfReader.numPages*100))
-        pdfFile.close()
+        # for i in range(pdfReader.numPages):
+        #     content+=pdfReader.getPage(i).extractText()
+        #     self.progressSingle.emit(int((i+1)/pdfReader.numPages*100))
+        # content = content.replace('\r', ' ').replace('\n', ' ').replace('\t', ' ')
+        # pdfFile.close()
+
+
+        parser = PDFParser(pdfFile)
+        # 创建一个PDF文档
+        doc = PDFDocument()
+        # 分析器和文档相互连接
+        parser.set_document(doc)
+        doc.set_parser(parser)
+        # 提供初始化密码，没有默认为空
+        doc.initialize()
+        # 检查文档是否可以转成TXT，如果不可以就忽略
+        if not doc.is_extractable:
+            raise PDFTextExtractionNotAllowed
+        else:
+            # 创建PDF资源管理器，来管理共享资源
+            rsrcmagr = PDFResourceManager()
+            # 创建一个PDF设备对象
+            laparams = LAParams()
+            # 将资源管理器和设备对象聚合
+            device = PDFPageAggregator(rsrcmagr, laparams=laparams)
+            # 创建一个PDF解释器对象
+            interpreter = PDFPageInterpreter(rsrcmagr, device)
+
+            # 循环遍历列表，每次处理一个page内容
+            # doc.get_pages()获取page列表
+            pagenum=sum(1 for _ in doc.get_pages())
+            for i,page in enumerate(doc.get_pages()):
+                # print(len(doc.get_pages()))
+                interpreter.process_page(page)
+                # 接收该页面的LTPage对象
+                layout = device.get_result()
+                # 这里的layout是一个LTPage对象 里面存放着page解析出来的各种对象
+                # 一般包括LTTextBox，LTFigure，LTImage，LTTextBoxHorizontal等等一些对像
+                # 想要获取文本就得获取对象的text属性
+                for x in layout:
+                    try:
+                        if (isinstance(x, LTTextBoxHorizontal)):
+                            # with open('%s' % (save_path), 'a') as f:
+                            result = x.get_text()
+                            # print(result)
+                            content += result
+                                # f.write(result + "\n")
+                    except:
+                        print("Failed")
+                self.progressSingle.emit(int((i + 1) / pagenum * 100))
+            content = content.replace('\r', ' ').replace('\t', ' ').replace('.\n', '*---*---*').replace('\n',' ').replace('*---*---*', u'\r\n\r\n')
+
+        self.messageSingle.emit("正在保存...")
+
         document = Document()                          # 打开一个基于默认“模板”的空白文档
         document.add_heading(self.art.title, 0)      # 添加标题
+        # contentdoc1=content.encode("utf-8")
+        # contentdoc=str(content.encode("utf-8"))
+        # p = document.add_paragraph(str(content.encode("utf-8")))
         p = document.add_paragraph(content)
         try:
             path=self.art.path + "/" + self.art.titlerecode + ".docx"
@@ -215,34 +283,56 @@ class transThread(QThread):
     progressvisualSingle = QtCore.pyqtSignal(bool)
     def __init__(self,art:artobject):
         self.art=art
-        super(extractThread, self).__init__()
+        super(transThread, self).__init__()
     def run(self):
+        # self.progressvisualSingle.emit(True)
+        # self.progressSingle.emit(0)
+        self.messageSingle.emit("正在翻译...")
         self.progressvisualSingle.emit(True)
         self.progressSingle.emit(0)
-        self.messageSingle.emit("正在翻译...")
-        pdfFile = open(self.art.allpath, 'rb')
-        pdfReader = PyPDF2.PdfFileReader(pdfFile)
-        # print(pdfReader.getDocumentInfo())
-        # print(pdfReader.numPages)
+        document = Document(self.art.extractpath)
         content=""
-        for i in range(pdfReader.numPages):
-            content+=pdfReader.getPage(i).extractText()
-            self.progressSingle.emit(int((i+1)/pdfReader.numPages*100))
-        pdfFile.close()
-        document = Document()                          # 打开一个基于默认“模板”的空白文档
-        document.add_heading(self.art.title, 0)      # 添加标题
-        p = document.add_paragraph(content)
+        # translator = Translator()
+        for paragraph in document.paragraphs:
+            content += paragraph.text
+            # print(len(paragraph.text))
+        # content=content.replace('\r',' ').replace('\n',' ').replace('\t',' ')
+        sentencelist=re.split(r"([.])", content)
+        chineseword=""
+        paragraphlist=[]
+        tempparagraph=""
+        for i,sentence in enumerate(sentencelist):
+            tempparagraph+=sentence
+            if len(tempparagraph)>1000:
+                translator = Translator()
+                try:
+                    chineseword += translator.translate(tempparagraph[0:(len(tempparagraph)-len(sentence))], dest='zh-CN').text
+                except Exception as e:
+                    self.messageSingle.emit("翻译线路超时，请检查网络连接或稍后重试！(" + str(e) + ")")
+                tempparagraph=sentence
+            self.progressSingle.emit((i+1)/len(sentencelist)*100)
+        translator = Translator()
         try:
-            path=self.art.path + "/" + self.art.titlerecode + ".docx"
-            document.save(path)
+            chineseword += translator.translate(tempparagraph, dest='zh-CN').text
+        except Exception as e:
+            self.messageSingle.emit("翻译线路超时，请检查网络连接或稍后重试！(" + str(e) + ")")
+        print()
+        documentchs = Document()                          # 打开一个基于默认“模板”的空白文档
+        # documentchs.add_heading(self.art.title, 0)      # 添加标题
+        p = documentchs.add_paragraph(chineseword)
+        try:
+            path=self.art.path + "/" + self.art.titlerecode + "_chs.docx"
+            documentchs.save(path)
+            self.art.transpath = path
         except PermissionError :
-            self.progressvisualSingle.emit(False)
+            # self.progressvisualSingle.emit(False)
             self.messageSingle.emit("文件占用，请关闭后重试！")
         except Exception as e:
             self.messageSingle.emit("未知异常，请重试！("+str(e)+")")
-        self.art.extractpath=path
-        self.progressvisualSingle.emit(False)
-        self.messageSingle.emit("文本提取完成！")
+        finally:
+            self.progressvisualSingle.emit(False)
+        # self.progressvisualSingle.emit(False)
+        self.messageSingle.emit("文本翻译完成！")
         self.enddingSingle.emit()
 
 
@@ -292,7 +382,12 @@ class getartThread(QThread):
                 title=artitem.find("p",class_="lead").string
                 # print(title)
                 artobjecttemp = artobject()
-                artobjecttemp.title = artitem.find("p", class_="lead").string.strip()
+                lead=artitem.find("p", class_="lead")
+                title=lead.find("title")
+                if title:
+                    artobjecttemp.title = title.string.strip()
+                else:
+                    artobjecttemp.title = lead.string.strip()
                 if self.trans:
                     artobjecttemp.chinesetitle = translator.translate(artobjecttemp.title, dest='zh-CN').text
                 else:
@@ -314,7 +409,9 @@ class getartThread(QThread):
 
                 artlist.append(artobjecttemp)
         except Exception as a:
-            self.messageSingle.emit("解析数据错误（"+str(a)+")")
+            self.messageSingle.emit("解析数据错误（"+str(i)+str(traceback.format_exc(limit=1))+")")
+            print(str(i)+traceback.format_exc(limit=1))
+            # self.messageSingle.emit("解析数据错误（"+str(a)+")")
             return
         self.enddingSingle.emit(artlist)
 
@@ -438,7 +535,7 @@ class savefilethread(QThread):
         except Exception as a :
             print(repr(a))
             print("self.scihuburl", self.scihuburl)
-            self.messageSingle.emit("文章下载失败！（"+str(a)+")")
+            self.messageSingle.emit("文章下载失败,请稍后重试！（"+str(a)+")")
             self.progressvisualSingle.emit(False)
             if os.path.exists(filepath):
                 try:

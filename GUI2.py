@@ -11,9 +11,9 @@ from PyQt5 import QtGui, QtWidgets
 from os import startfile
 import sys
 from PyQt5.QtWidgets import *
-from Thread2 import getartThread, updateurlsThread, saveachethread,translatethread,savefilethread,artobject,updateurlsThreadsingle,extractThread
+# from Thread2 import getartThread, updateurlsThread, saveachethread,translatethread,savefilethread,artobject,updateurlsThreadsingle,extractThread
+from Thread2 import *
 from activationwin import activationwindow
-
 from PyQt5.QtGui import QIntValidator, QDoubleValidator, QRegExpValidator
 os.environ['REQUESTS_CA_BUNDLE'] = os.path.join(os.path.dirname(sys.argv[0]), 'cacert.pem')
 class Logger(object):
@@ -394,10 +394,12 @@ class main(QMainWindow):
 
     def deletedownloadartbuttonclick(self):
         index=self.downloadedartlistTable.currentIndex().row()
-        art=self.arts.pop(index)
+        art:artobject=self.arts.pop(index)
         if os.path.exists(art.allpath):
             try:
                 os.remove(art.allpath)
+                os.remove(art.extractpath)
+                os.remove(art.transpath)
             except Exception as a:
                 print(a)
         self.savefileend()
@@ -408,36 +410,59 @@ class main(QMainWindow):
         else:
             self.statusBar().showMessage("文件夹不存在，请检查！")
 
+    def startextractthread(self,art:artobject,endingfun=None):
+        self.extractthread = extractThread(art)
+        self.extractthread.messageSingle.connect(self.statusBar().showMessage)
+        self.extractthread.progressSingle.connect(self.progressBar.setValue)
+        self.extractthread.progressvisualSingle.connect(self.progressBar.setVisible)
+        self.extractthread.enddingSingle.connect(lambda: self.savefileend())
+        if endingfun != None:
+            self.extractthread.enddingSingle.connect(lambda:endingfun(art))
+        self.extractthread.start()
+
+    def starttransthread(self,art:artobject,endingfun=None):
+        self.transthread = transThread(art)
+        self.transthread.messageSingle.connect(self.statusBar().showMessage)
+        self.transthread.progressSingle.connect(self.progressBar.setValue)
+        self.transthread.progressvisualSingle.connect(self.progressBar.setVisible)
+        self.transthread.enddingSingle.connect(lambda: self.savefileend())
+        if endingfun != None:
+            self.transthread.enddingSingle.connect(lambda:endingfun)
+        self.transthread.start()
+
     def downloadedartlistTabledoubleclicked(self):
-        print("self.fileindex:", self.downloadedartlistTable.currentIndex().row())
+        # print("self.fileindex:", self.downloadedartlistTable.currentIndex().row())
         rowindex = self.downloadedartlistTable.currentIndex().row()
         colindex = self.downloadedartlistTable.currentIndex().column()
-        title=self.arts[rowindex].title
+        art=self.arts[rowindex]
+        title=art.title
         if colindex==0:
-            filepath = self.arts[rowindex].allpath
+            filepath = art.allpath
             if os.path.exists(filepath):
                 self.statusBar().showMessage("正在打开文件--"+title)
                 os.startfile(filepath)
             else:
                 self.statusBar().showMessage("文件已被删除，请重新下载！")
         elif colindex==1:
-            if self.arts[rowindex].extractpath=="":
-                self.translatethread=extractThread(self.arts[rowindex])
-                self.translatethread.messageSingle.connect(self.statusBar().showMessage)
-                self.translatethread.progressSingle.connect(self.progressBar.setValue)
-                self.translatethread.progressvisualSingle.connect(self.progressBar.setVisible)
-                self.translatethread.enddingSingle.connect(lambda:self.savefileend())
-                self.translatethread.start()
+            if not os.path.exists(art.extractpath):
+                self.startextractthread(art)
             else:
-                os.startfile(self.arts[rowindex].extractpath)
-                # self.statusBar().showMessage("正在打开文件--" + title)
-                # os.startfile(filepath)
+                os.startfile(art.extractpath)
+
+        elif colindex==2:
+            if not os.path.exists(art.extractpath):
+                self.startextractthread(art,self.starttransthread)
+            else:
+                if not os.path.exists(art.transpath):
+                    self.starttransthread(art)
+                else:
+                    os.startfile(art.transpath)
 
     # def extractending(self):
     #     self.
 
     def downloadedartlistTableclicked(self):
-        print("self.fileindex:", self.downloadedartlistTable.currentIndex().row())
+        # print("self.fileindex:", self.downloadedartlistTable.currentIndex().row())
         index = self.downloadedartlistTable.currentIndex().row()
         self.artInfTable.clearContents()
         self.artInfTable.setItem(0, 0, QTableWidgetItem(str(self.arts[index].title)))
@@ -512,9 +537,9 @@ class main(QMainWindow):
                 self.trans=False
                 print("self.trans",self.trans)
                 self.transcheck.setChecked(self.trans)
-                self.downloadedartlistTable.setItem(1, 0, QTableWidgetItem("翻译线路(已自动关闭)"))
+                self.channellistTable.setItem(1, 0, QTableWidgetItem("翻译线路(已自动关闭)"))
             else:
-                self.downloadedartlistTable.setItem(1, 0, QTableWidgetItem("翻译线路"))
+                self.channellistTable.setItem(1, 0, QTableWidgetItem("翻译线路"))
         elif url == "https://www.crossref.org/":
             index = 0
 
@@ -593,11 +618,11 @@ class main(QMainWindow):
             # extractButton.clicked.connect(self.extractclicked)
             # # transButton=QPushButton("提取")
             self.downloadedartlistTable.setItem(i, 0, QTableWidgetItem(str(self.arts[i].title)))
-            if self.arts[i].extractpath=="":
+            if not os.path.exists(self.arts[i].extractpath):
                 self.downloadedartlistTable.setItem(i, 1, QTableWidgetItem("识别"))
             else:
                 self.downloadedartlistTable.setItem(i, 1, QTableWidgetItem("打开"))
-            if self.arts[i].transpath == "":
+            if not os.path.exists(self.arts[i].transpath):
                 self.downloadedartlistTable.setItem(i, 2, QTableWidgetItem("翻译"))
             else:
                 self.downloadedartlistTable.setItem(i, 2, QTableWidgetItem("打开"))
