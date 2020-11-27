@@ -25,7 +25,7 @@ class activationwindow(QWidget):
         # todo:软件配置
         self.setFont(QFont("Microsoft YaHei", 12))
         # self.setWindowIcon(QIcon('logo.png'))
-        self.setWindowTitle('产品激活,请联系1021419744(qq)索要密钥')
+        self.setWindowTitle('产品激活,请联系微信')
         self.resize(500,150)
         self.grid=QGridLayout()
 
@@ -51,16 +51,33 @@ class activationwindow(QWidget):
         self.grid.addWidget(self.keyeditline2, 2, 4, 1, 4)
 
 
-        self.inflabel=QLabel()
-        self.grid.addWidget(self.inflabel,3,0,1,8)
+        self.zhifubaocodelabel=QLabel()
+        self.zhifubaocodelabel.setPixmap(QPixmap('zhifubao.jpg'))
+        self.zhifubaocodelabel.setAlignment(Qt.AlignHCenter)
+        self.grid.addWidget(self.zhifubaocodelabel,3,0,1,4)
+
+        self.weixincodelabel=QLabel()
+        self.weixincodelabel.setPixmap(QPixmap('weixin.jpg'))
+        self.weixincodelabel.setAlignment(Qt.AlignHCenter)
+        self.grid.addWidget(self.weixincodelabel,3,4,1,4)
+
+        self.inftextlabel = QLabel()
+        self.inftextlabel.setText("编写软件不易，您一包烟的钱，却是对我最大的鼓励！\n请备注上边激活明文(右键复制)后转账（支付宝左，微信右）五元激活！\n ")
+        self.inftextlabel.setAlignment(Qt.AlignHCenter)
+        self.grid.addWidget(self.inftextlabel, 4, 0, 1, 8)
+
+        self.inflabel = QLabel()
+        self.inflabel.setText("")
+        self.inflabel.setAlignment(Qt.AlignHCenter)
+        self.grid.addWidget(self.inflabel, 5, 0, 1, 8)
 
         self.keyactivebutton=QPushButton("单设备密钥激活")
         self.keyactivebutton.clicked.connect(self.keyactivebuttonclicked)
-        self.grid.addWidget(self.keyactivebutton, 4, 0, 1, 4)
+        self.grid.addWidget(self.keyactivebutton, 6, 0, 1, 4)
 
         self.webactivebutton=QPushButton("联网自动激活")
         self.webactivebutton.clicked.connect(self.webactivebuttonclicked)
-        self.grid.addWidget(self.webactivebutton, 4, 4, 1, 4)
+        self.grid.addWidget(self.webactivebutton, 6, 4, 1, 4)
 
 
 

@@ -1,5 +1,6 @@
 
 from PyQt5.QtGui import QIcon
+import datetime
 from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QMessageBox
 import pickle
 import uuid
@@ -10,16 +11,20 @@ import os
 from PyQt5 import QtGui, QtWidgets
 from os import startfile
 import sys
+from googletrans import Translator
 from PyQt5.QtWidgets import *
 # from Thread2 import getartThread, updateurlsThread, saveachethread,translatethread,savefilethread,artobject,updateurlsThreadsingle,extractThread
 from Thread2 import *
 from activationwin import activationwindow
 from PyQt5.QtGui import QIntValidator, QDoubleValidator, QRegExpValidator
+
+from google_trans_new import google_translator
 os.environ['REQUESTS_CA_BUNDLE'] = os.path.join(os.path.dirname(sys.argv[0]), 'cacert.pem')
 class Logger(object):
     def __init__(self, filename='default.log', stream=sys.stdout):
         self.terminal = stream
         self.log = open(filename, 'w')
+
 
     def write(self, message):
         self.terminal.write(message)
@@ -55,62 +60,116 @@ class main(QMainWindow):
         # 文件名输入框
         # self.textedit = QTextEdit()
         # self.grid.addWidget(self.textedit, 2, 0, 1, 2)
-        self.allurls = [
-            "https://sci-hub.tw",
-            "https://sci-hub.sci-hub.tw",
-            "https://sci-hub.hk",
-            "https://sci-hub.sci-hub.hk",
-            "https://sci-hub.la",
-            "https://sci-hub.mn",
-            "https://sci-hub.name",
-            "https://sci-hub.is",
-            "https://sci-hub.tv",
-            "https://sci-hub.ws",
-            "https://www.sci-hub.cn",
-            "https://sci-hub.sci-hub.mn",
-            "https://sci-hub.sci-hub.tv"]
+        self.allurls=[]
+        # self.allurls = [
+        #     "https://sci-hub.tw",
+        #     "https://sci-hub.se",
+        #     "https://sci-hub.st",
+        #     "https://sci-hub.pl",
+        #     "https://sci-hub.ren",
+        #     "https://sci-hub.shop",
+        #     "https://sci-hub.sci-hub.tw",
+        #     "https://sci-hub.hk",
+        #     "https://sci-hub.sci-hub.hk",
+        #     "https://sci-hub.la",
+        #     "https://sci-hub.mn",
+        #     "https://sci-hub.name",
+        #     "https://sci-hub.is",
+        #     "https://sci-hub.tv",
+        #     "https://sci-hub.ws",
+        #     "https://www.sci-hub.cn",
+        #     "https://sci-hub.sci-hub.mn",
+        #     "https://sci-hub.sci-hub.tv"]
 
-
-        self.urlsable = []
+        self.urlsable = dict()
         self.urls = dict()
         self.arts = []
         self.artlist=[]
         self.time = 0
         self.page=1
-        self.timeout=50
+        self.timeout=30
+        self.elemperpageindex=9
+        self.starttimeindex=0
+        self.endtimeindex=0
+        self.timeselecttypeindex=0
         self.trans=True
         self.updateurling=False
         self.transconnect=True
         self.searchconnect=True
+        self.settingpath = os.getcwd()+"/setting.data"
+        self.savepathachepath=os.getcwd()+"/savepath.ache"
         self.savepath = os.getcwd() + "/savefile/"
         self.achepath = os.getcwd() + "/history.ache"
-        self.savepathachepath = os.getcwd() + "/savepath.ache"
+        if (not os.path.exists(self.savepathachepath)):
+            self.savepath = os.getcwd() + "/savefile"
+        else:
+            self.savepath = pickle.load(open("savepath.ache", 'rb'))
+        self.translator = google_translator(timeout=5)
+        # self.translator = Translator()
+
+        self.yearlist=list(map(str,range(int(datetime.datetime.now().year),1950,-1)))
+
+        self.loadsetting()
 
         self.titletextedit=QLineEdit()
-        self.titletextedit.setPlaceholderText('请输入或粘贴关键词！')
+        self.titletextedit.setPlaceholderText('请输入或粘贴关键词后回车！')
         # self.titletextedit.returnPressed.connect(lambda: self.inLineEditfinished())
-        self.titletextedit.textChanged.connect(lambda: self.titletexteditChanged())
-        self.grid.addWidget(self.titletextedit, 0, 0, 1, 10)
+        self.titletextedit.returnPressed.connect(lambda: self.titletextreturnPressed())
+        self.grid.addWidget(self.titletextedit, 0, 0, 1, 9)
+
+        self.startgetartsbutton=QPushButton("开始检索")
+        self.startgetartsbutton.clicked.connect(lambda: self.titletextreturnPressed())
+        self.grid.addWidget(self.startgetartsbutton, 0, 9, 1, 1)
+
 
         self.titlechinesetextedit=QLineEdit()
         self.titlechinesetextedit.setPlaceholderText('关键词中文')
         self.titlechinesetextedit.setReadOnly(True)
         # self.titletextedit.returnPressed.connect(lambda: self.inLineEditfinished())
         # self.titlechinesetextedit.textChanged.connect(lambda: self.inLineEditfinished())
-        self.grid.addWidget(self.titlechinesetextedit, 1, 0, 1, 10)
+        self.grid.addWidget(self.titlechinesetextedit, 1, 0, 1, 9)
 
         self.artlistlabel=QLabel("检索列表")
         self.grid.addWidget(self.artlistlabel, 2, 0, 1, 1)
 
+        self.artunmperpagelabel=QLabel("每页文章数量:")
+        self.grid.addWidget(self.artunmperpagelabel, 2, 1, 1, 1)
 
+
+        self.elemnumperpagelist = QComboBox()
+        self.elemnumperpagelist.addItems(list(map(str,range(1,101))))
+        self.elemnumperpagelist.setCurrentIndex(self.elemperpageindex)
+        self.elemnumperpagelist.currentIndexChanged.connect(self.elemnumperpagelistIndexChanged)
+        self.grid.addWidget(self.elemnumperpagelist, 2, 2, 1, 1)
+
+        self.artlistlabel=QLabel("筛选时间范围")
+        self.grid.addWidget(self.artlistlabel, 3, 0, 1, 1)
+
+        self.starttimelist = QComboBox()
+        self.starttimelist.addItems(self.yearlist)
+        self.starttimelist.setCurrentIndex(self.starttimeindex)
+        self.starttimelist.currentIndexChanged.connect(self.starttimeindexchanged)
+        self.grid.addWidget(self.starttimelist, 3, 1, 1, 1)
+
+        self.endtimelist = QComboBox()
+        self.endtimelist.addItems(self.yearlist)
+        self.endtimelist.setCurrentIndex(self.endtimeindex)
+        self.endtimelist.currentIndexChanged.connect(self.endtimeindexchanged)
+        self.grid.addWidget(self.endtimelist, 3, 2, 1, 1)
+
+        self.timeselecttypelist=QComboBox()
+        self.timeselecttypelist.addItems(["不过滤","index","deposit","update","created","published","online published","print published","posted","accepted"])
+        self.timeselecttypelist.setCurrentIndex(self.timeselecttypeindex)
+        self.timeselecttypelist.currentIndexChanged.connect(self.timeselecttypeindexchanged)
+        self.grid.addWidget(self.timeselecttypelist, 3, 3, 1, 1)
 
         self.artinflabel=QLabel("文章详细信息")
-        self.grid.addWidget(self.artinflabel, 2, 5, 1, 5)
+        self.grid.addWidget(self.artinflabel, 2, 7, 1, 3)
 
         self.transcheck = QCheckBox("检索时翻译标题")
-        self.transcheck.stateChanged.connect(self.transcheckselect)
         self.transcheck.setChecked(self.trans)
-        self.grid.addWidget(self.transcheck, 2, 9, 1, 1)
+        self.transcheck.stateChanged.connect(self.transcheckselect)
+        self.grid.addWidget(self.transcheck, 1, 9, 1, 1)
 
         self.artlistTable = QTableWidget()
         # self.artlistTable = QTableWidget()
@@ -127,12 +186,12 @@ class main(QMainWindow):
         self.artlistTable.setDragDropMode(QAbstractItemView.InternalMove)
         # self.artlistTable.setVerticalHeaderLabels(["论文名称"])
         self.artlistTable.setHorizontalHeaderLabels(["文章名称"])
-        self.grid.addWidget(self.artlistTable, 3, 0, 1, 5)
+        self.grid.addWidget(self.artlistTable, 4, 0, 1, 7)
 
         self.artInfTable = QTableWidget()
         # self.artInfTable = QTableWidget()
         self.artInfTable.setColumnCount(1)
-        self.artInfTable.setRowCount(5)
+        self.artInfTable.setRowCount(21)
         # self.artInfTable.clicked.connect(self.artInfTableclicked)
         self.artInfTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.artInfTable.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -143,13 +202,13 @@ class main(QMainWindow):
         self.artInfTable.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)  # 一列也可以滚动
         self.artInfTable.setDragDropMode(QAbstractItemView.InternalMove)
         # self.artInfTable.setVerticalHeaderLabels(["论文名称"])
-        self.artInfTable.setVerticalHeaderLabels(["文章名称","中文名称", "作者", "期刊","DOI","文章地址"])
+        self.artInfTable.setVerticalHeaderLabels(["文章名称","中文名称", "作者","创建时间", "期刊","DOI","引用文章数","被引次数","文章类型","来源","文章地址","摘要","index-data","deposit-data","update-data","created-data","published-data","online-published-data","print-published-data","posted-data","accepted-data"])
         self.artInfTable.setHorizontalHeaderLabels(["文章信息"])
-        self.grid.addWidget(self.artInfTable, 3, 5, 2, 5)
+        self.grid.addWidget(self.artInfTable, 3, 7, 3, 3)
 
 
         self.artdownloadlabel=QLabel("历史下载文章列表(单击查看详细信息，双击打开)")
-        self.grid.addWidget(self.artdownloadlabel, 5, 0, 1, 5)
+        self.grid.addWidget(self.artdownloadlabel, 6, 0, 1, 5)
 
         self.downloadedartlistTable = QTableWidget()
         # self.downloadedartlistTable = QTableWidget()
@@ -167,15 +226,14 @@ class main(QMainWindow):
         self.downloadedartlistTable.setDragDropMode(QAbstractItemView.InternalMove)
         # self.downloadedartlistTable.setVerticalHeaderLabels(["论文名称"])
         self.downloadedartlistTable.setHorizontalHeaderLabels(["论文名称", "文本识别", "文本翻译", "文件路径", "保存时间"])
-        self.grid.addWidget(self.downloadedartlistTable, 6, 0, 1, 7)
+        self.grid.addWidget(self.downloadedartlistTable, 7, 0, 1, 7)
 
         self.artdownloadlabel=QLabel("线路信息")
-        self.grid.addWidget(self.artdownloadlabel, 5, 7, 1, 1)
+        self.grid.addWidget(self.artdownloadlabel, 6, 7, 1, 1)
 
         self.channellistTable = QTableWidget()
         # self.downloadedartlistTable = QTableWidget()
         self.channellistTable.setColumnCount(2)
-        self.channellistTable.setRowCount(len(self.allurls)+2)
         self.channellistTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.channellistTable.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.channellistTable.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -186,61 +244,71 @@ class main(QMainWindow):
         self.channellistTable.setDragDropMode(QAbstractItemView.InternalMove)
         # self.downloadedartlistTable.setVerticalHeaderLabels(["论文名称"])
         self.channellistTable.setHorizontalHeaderLabels(["线路", "连接时间"])
+        #
+        # self.channellistTable.setItem(0, 0, QTableWidgetItem("检索线路"))
+        # self.channellistTable.setItem(1, 0, QTableWidgetItem("翻译线路"))
+        # for i,url in enumerate(self.allurls):
+        #     self.channellistTable.setItem(i+2, 0, QTableWidgetItem(str(url)))
 
-        self.channellistTable.setItem(0, 0, QTableWidgetItem("检索线路"))
-        self.channellistTable.setItem(1, 0, QTableWidgetItem("翻译线路"))
-        for i,url in enumerate(self.allurls):
-            self.channellistTable.setItem(i+2, 0, QTableWidgetItem(str(url)))
-
-        self.grid.addWidget(self.channellistTable, 6, 7, 1, 3)
+        self.grid.addWidget(self.channellistTable, 7, 7, 1, 3)
+        self.loadchannellist()
 
 
         self.prebutton = QPushButton("上一页")
         self.prebutton.clicked.connect(self.prebuttonclick)
-        self.grid.addWidget(self.prebutton, 4, 0, 1, 1)
+        self.grid.addWidget(self.prebutton, 5, 1, 1, 1)
 
         self.nextbutton = QPushButton("下一页")
         self.nextbutton.clicked.connect(self.nextbuttonclick)
-        self.grid.addWidget(self.nextbutton, 4, 1, 1, 1)
+        self.grid.addWidget(self.nextbutton, 5, 2, 1, 1)
 
-        self.pagelabel=QLabel("当前页码:")
-        self.grid.addWidget(self.pagelabel, 2, 3, 1, 1)
+        self.pagelabel=QLabel("第0页")
+        self.grid.addWidget(self.pagelabel, 5, 0, 1, 1)
 
         self.renovatebutton = QPushButton("刷新检索列表")
         self.renovatebutton.clicked.connect(self.renovatebuttonclick)
-        self.grid.addWidget(self.renovatebutton, 2, 4, 1, 1)
+        self.grid.addWidget(self.renovatebutton, 3, 4, 1, 1)
 
-        self.downloadtitlebutton = QPushButton("根据输入下载文章")
+        self.downloadtitlebutton = QPushButton("将输入作为DOI下载文章")
         self.downloadtitlebutton.clicked.connect(self.downloadtitlebuttonclick)
-        self.grid.addWidget(self.downloadtitlebutton, 4, 2, 1, 1)
+        self.grid.addWidget(self.downloadtitlebutton, 5, 3, 1, 1)
 
         self.downloadbutton = QPushButton("下载文章")
         self.downloadbutton.clicked.connect(self.downloadbuttonclick)
-        self.grid.addWidget(self.downloadbutton, 4, 4, 1, 1)
+        self.grid.addWidget(self.downloadbutton, 5, 4, 1, 1)
+
+        self.addlocalarticlebutton = QPushButton("添加本地文章")
+        self.addlocalarticlebutton.clicked.connect(self.addlocalarticlebuttonclick)
+        self.grid.addWidget(self.addlocalarticlebutton, 6, 5, 1, 1)
+
 
         self.deletedownloadartbutton = QPushButton("删除选中文章")
         self.deletedownloadartbutton.clicked.connect(self.deletedownloadartbuttonclick)
-        self.grid.addWidget(self.deletedownloadartbutton, 5, 6, 1, 1)
+        self.grid.addWidget(self.deletedownloadartbutton, 6, 6, 1, 1)
 
         self.savepathlineedit = QLineEdit()
         self.savepathlineedit.setText(self.savepath)
         self.savepathlineedit.setReadOnly(True)
-        self.grid.addWidget(self.savepathlineedit, 7, 0, 1, 4)
+        self.grid.addWidget(self.savepathlineedit, 8, 0, 1, 4)
 
         self.savepathbutton = QPushButton("更改保存路径")
         self.savepathbutton.clicked.connect(self.savepathbuttonclicked)
-        self.grid.addWidget(self.savepathbutton, 7, 4, 1, 1)
+        self.grid.addWidget(self.savepathbutton, 8, 4, 1, 1)
 
         self.openpathbutton = QPushButton("打开保存路径")
         self.openpathbutton.clicked.connect(self.openpathbuttonclicked)
-        self.grid.addWidget(self.openpathbutton, 7, 5, 1, 1)
+        self.grid.addWidget(self.openpathbutton, 8, 5, 1, 1)
 
-        self.updataurlsbutton = QPushButton("更新可用线路")
+        self.updataurlsfromfilebutton = QPushButton("更新线路")
+        self.updataurlsfromfilebutton.clicked.connect(self.updataurlsfromfile)
+        self.grid.addWidget(self.updataurlsfromfilebutton, 6, 8, 1, 1)
+
+        self.updataurlsbutton = QPushButton("测试连接")
         self.updataurlsbutton.clicked.connect(self.updateurls)
-        self.grid.addWidget(self.updataurlsbutton, 5, 9, 1, 1)
+        self.grid.addWidget(self.updataurlsbutton, 6, 9, 1, 1)
 
         self.timeoutlabel = QLabel("超时时间(s):")
-        self.grid.addWidget(self.timeoutlabel, 7, 7, 1, 1)
+        self.grid.addWidget(self.timeoutlabel, 8, 7, 1, 1)
 
         pDoubleValidator = QDoubleValidator(self)
         pDoubleValidator.setRange(0, 100)
@@ -251,8 +319,8 @@ class main(QMainWindow):
         self.timeoutedit.setValidator(pDoubleValidator)
         self.timeoutedit.setText(str(self.timeout))
         # self.titletextedit.returnPressed.connect(lambda: self.inLineEditfinished())
-        self.timeoutedit.returnPressed.connect(self.timeouteditPressed)
-        self.grid.addWidget(self.timeoutedit, 7, 8, 1, 2)
+        self.timeoutedit.textChanged.connect(self.timeouttextChanged)
+        self.grid.addWidget(self.timeoutedit, 8, 8, 1, 2)
 
         #
         # self.codelabel=QLabel()
@@ -263,6 +331,26 @@ class main(QMainWindow):
         self.setCentralWidget(self.widget)
         self.updateurls()
         self.loadache()
+
+    def loadchannellist(self):
+        if os.path.exists("scihubactivelist.txt"):
+            file = open("scihubactivelist.txt")
+            del self.allurls[:]
+            for line in file:
+                urlstr=line.strip('\n')
+                if urlstr!="":
+                    self.allurls.append(line.strip('\n'))
+            file.close()
+            self.channellistTable.setRowCount(len(self.allurls) + 2)
+            self.channellistTable.setItem(0, 0, QTableWidgetItem("检索线路"))
+            self.channellistTable.setItem(1, 0, QTableWidgetItem("翻译线路"))
+            for i, url in enumerate(self.allurls):
+                self.channellistTable.setItem(i + 2, 0, QTableWidgetItem(str(url)))
+
+            self.grid.addWidget(self.channellistTable, 7, 7, 1, 3)
+
+    def updataurlsfromfile(self):
+        self.loadchannellist()
 
 
     def getauthority(self):
@@ -334,16 +422,16 @@ class main(QMainWindow):
             self.statusBar().showMessage("已到最前页！")
             return
         self.page -= 1
-        self.pagelabel.setText("当前页码:"+str(self.page))
-        self.getartthread=getartThread(self.urls,self.titletextedit.text(),self.trans,self.page)
+        self.pagelabel.setText("第"+str(self.page)+"页")
+        self.getartthread=getartThread(self.urls,self.titletextedit.text(),self.elemperpage,self.trans,self.timeselecttypeindex,self.yearlist[self.starttimelist.currentIndex()],self.yearlist[self.endtimelist.currentIndex()],self.translator,self.page)
         self.getartthread.messageSingle.connect(self.statusBar().showMessage)
         self.getartthread.enddingSingle.connect(self.getartend)
         self.getartthread.start()
 
     def nextbuttonclick(self):
         self.page += 1
-        self.pagelabel.setText("当前页码:"+str(self.page))
-        self.getartthread=getartThread(self.urls,self.titletextedit.text(),self.trans,self.page)
+        self.pagelabel.setText("第"+str(self.page)+"页")
+        self.getartthread=getartThread(self.urls,self.titletextedit.text(),self.elemperpageindex,self.trans,self.timeselecttypeindex,self.yearlist[self.starttimeindex],self.yearlist[self.endtimeindex],self.translator,self.page)
         self.getartthread.messageSingle.connect(self.statusBar().showMessage)
         self.getartthread.enddingSingle.connect(self.getartend)
         self.getartthread.start()
@@ -352,10 +440,12 @@ class main(QMainWindow):
         title = self.titletextedit.text()
         art=artobject()
         art.title=title
+        art.doi=title
         if len(self.urlsable) == 0:
             self.statusBar().showMessage("请更新线路信息！")
             return
-        url=min(self.urls,key=lambda x:self.urls[x])
+        # url=min(self.urls,key=lambda x:self.urls[x])
+        url = sorted(self.urlsable, key=lambda x: self.urlsable[x])
         self.savefilethread = savefilethread(url, art, self.savepath)
         self.savefilethread.messageSingle.connect(self.statusBar().showMessage)
         self.savefilethread.enddingSingle.connect(self.savefileend)
@@ -365,32 +455,76 @@ class main(QMainWindow):
         self.savefilethread.start()
 
 
-    def titletexteditChanged(self):
+    def titletextreturnPressed(self):
         if self.titletextedit.text() =="":
             return
         if self.trans:
-            self.pagelabel.setText("当前页码:"+str(self.page))
-            self.translatethread=translatethread(self.titletextedit.text())
+            self.pagelabel.setText("第"+str(self.page)+"页")
+            self.translatethread=translatethread(self.titletextedit.text(),self.translator)
             self.translatethread.enddingSingle.connect(self.titlechinesetextedit.setText)
             self.translatethread.start()
 
-        self.getartthread=getartThread(" ",self.titletextedit.text(),self.trans)
+        self.getartthread=getartThread(" ",self.titletextedit.text(),self.elemperpageindex,self.trans,self.timeselecttypeindex,self.yearlist[self.starttimeindex],self.yearlist[self.endtimeindex],self.translator)
         self.getartthread.messageSingle.connect(self.statusBar().showMessage)
         self.getartthread.enddingSingle.connect(self.getartend)
         self.getartthread.start()
+
+    def updateartInfTable(self,art:artobject):
+        self.artInfTable.clearContents()
+        self.artInfTable.setItem(0, 0, QTableWidgetItem(str(art.title)))
+        self.artInfTable.setItem(1, 0, QTableWidgetItem(str(art.chinesetitle)))
+        self.artInfTable.setItem(2, 0, QTableWidgetItem(str(art.authors)))
+        self.artInfTable.setItem(3, 0, QTableWidgetItem(str(art.createdtime)))
+        self.artInfTable.setItem(4, 0, QTableWidgetItem(str(art.extra)))
+        self.artInfTable.setItem(5, 0, QTableWidgetItem(str(art.doi)))
+        self.artInfTable.setItem(6, 0, QTableWidgetItem(str(art.reference_count)))
+        self.artInfTable.setItem(7, 0, QTableWidgetItem(str(art.is_reference_count)))
+        self.artInfTable.setItem(8, 0, QTableWidgetItem(str(art.type)))
+        self.artInfTable.setItem(9, 0, QTableWidgetItem(str(art.source)))
+        self.artInfTable.setItem(10, 0, QTableWidgetItem(str(art.arturl)))
+        self.artInfTable.setItem(11, 0, QTableWidgetItem(str(art.abstracttrans)))
+        self.artInfTable.setItem(12, 0, QTableWidgetItem(str(art.indextime)))
+        self.artInfTable.setItem(13, 0, QTableWidgetItem(str(art.deposittime)))
+        self.artInfTable.setItem(14, 0, QTableWidgetItem(str(art.updatetime)))
+        self.artInfTable.setItem(15, 0, QTableWidgetItem(str(art.createdtime)))
+        self.artInfTable.setItem(16, 0, QTableWidgetItem(str(art.publishedtime)))
+        self.artInfTable.setItem(17, 0, QTableWidgetItem(str(art.online_published)))
+        self.artInfTable.setItem(18, 0, QTableWidgetItem(str(art.print_published)))
+        self.artInfTable.setItem(19, 0, QTableWidgetItem(str(art.posted)))
+        self.artInfTable.setItem(20, 0, QTableWidgetItem(str(art.accepted)))
 
     def artlistTableclicked(self):
         index=self.artlistTable.currentIndex().row()
         print(index)
         if index == -1 :
             return
-        self.artInfTable.clearContents()
-        self.artInfTable.setItem(0, 0, QTableWidgetItem(str(self.artlist[index].title)))
-        self.artInfTable.setItem(1, 0, QTableWidgetItem(str(self.artlist[index].chinesetitle)))
-        self.artInfTable.setItem(2, 0, QTableWidgetItem(str(self.artlist[index].authors)))
-        self.artInfTable.setItem(3, 0, QTableWidgetItem(str(self.artlist[index].extra)))
-        self.artInfTable.setItem(4, 0, QTableWidgetItem(str(self.artlist[index].doi)))
-        self.artInfTable.setItem(5, 0, QTableWidgetItem(str(self.artlist[index].arturl)))
+        self.updateartInfTable(self.artlist[index])
+
+
+    def addlocalarticlebuttonclick(self):
+        fileName_choose, filetype = QFileDialog.getOpenFileName(self,"请选择要添加的PDF文件",filter="PDF Files (*.PDF)")  # 设置文件扩展名过滤,用双分号间隔
+        if fileName_choose == "":
+            print("\n未选择PDF文件")
+            self.statusBar().showMessage("未选择PDF文件！")
+            return
+
+        # print("\n你选择的文件为:")
+        # print(fileName_choose)
+        # print("文件筛选器类型: ", filetype)
+        newarticle=artobject()
+        title=os.path.basename(fileName_choose).split('.')[0]
+        newarticle.title=title
+        newarticle.path=os.path.dirname(fileName_choose)
+
+        newarticle.filename = title + ".pdf"
+        filename = re.sub(r"[\/\\\:\*\?\"\<\>\|]", "_", title)
+        newarticle.titlerecode = filename
+        newarticle.allpath = fileName_choose
+        newarticle.data = datetime.datetime.now()
+        newarticle.datastr = datetime.datetime.now().strftime('%y-%m-%d %H:%M:%S')
+        self.arts.insert(0,newarticle)
+        self.savefileend()
+        # newarticle.title=
 
     def deletedownloadartbuttonclick(self):
         index=self.downloadedartlistTable.currentIndex().row()
@@ -421,7 +555,7 @@ class main(QMainWindow):
         self.extractthread.start()
 
     def starttransthread(self,art:artobject,endingfun=None):
-        self.transthread = transThread(art)
+        self.transthread = transThread(art,self.translator)
         self.transthread.messageSingle.connect(self.statusBar().showMessage)
         self.transthread.progressSingle.connect(self.progressBar.setValue)
         self.transthread.progressvisualSingle.connect(self.progressBar.setVisible)
@@ -464,39 +598,61 @@ class main(QMainWindow):
     def downloadedartlistTableclicked(self):
         # print("self.fileindex:", self.downloadedartlistTable.currentIndex().row())
         index = self.downloadedartlistTable.currentIndex().row()
-        self.artInfTable.clearContents()
-        self.artInfTable.setItem(0, 0, QTableWidgetItem(str(self.arts[index].title)))
-        self.artInfTable.setItem(1, 0, QTableWidgetItem(str(self.arts[index].chinesetitle)))
-        self.artInfTable.setItem(2, 0, QTableWidgetItem(str(self.arts[index].authors)))
-        self.artInfTable.setItem(3, 0, QTableWidgetItem(str(self.arts[index].extra)))
-        self.artInfTable.setItem(4, 0, QTableWidgetItem(str(self.arts[index].doi)))
-        self.artInfTable.setItem(5, 0, QTableWidgetItem(str(self.arts[index].arturl)))
+        # self.updateartInfTable(self.artlist[index])
+
+        # self.artInfTable.clearContents()
+        # self.artInfTable.setItem(0, 0, QTableWidgetItem(str(self.arts[index].title)))
+        # self.artInfTable.setItem(1, 0, QTableWidgetItem(str(self.arts[index].chinesetitle)))
+        # self.artInfTable.setItem(2, 0, QTableWidgetItem(str(self.arts[index].authors)))
+        # self.artInfTable.setItem(3, 0, QTableWidgetItem(str(self.arts[index].createdtime)))
+        # self.artInfTable.setItem(4, 0, QTableWidgetItem(str(self.arts[index].extra)))
+        # self.artInfTable.setItem(5, 0, QTableWidgetItem(str(self.arts[index].doi)))
+        # self.artInfTable.setItem(6, 0, QTableWidgetItem(str(self.arts[index].reference_count)))
+        # self.artInfTable.setItem(7, 0, QTableWidgetItem(str(self.arts[index].is_reference_count)))
+        # self.artInfTable.setItem(8, 0, QTableWidgetItem(str(self.arts[index].type)))
+        # self.artInfTable.setItem(9, 0, QTableWidgetItem(str(self.arts[index].source)))
+        # self.artInfTable.setItem(10, 0, QTableWidgetItem(str(self.arts[index].arturl)))
+        # self.artInfTable.setItem(11, 0, QTableWidgetItem(str(self.arts[index].abstracttrans)))
+        # self.artInfTable.setItem(12, 0, QTableWidgetItem(str(self.arts[index].indextime)))
+        # self.artInfTable.setItem(13, 0, QTableWidgetItem(str(self.arts[index].deposittime)))
+        # self.artInfTable.setItem(14, 0, QTableWidgetItem(str(self.arts[index].updatetime)))
+        # self.artInfTable.setItem(15, 0, QTableWidgetItem(str(self.arts[index].createdtime)))
+        # self.artInfTable.setItem(16, 0, QTableWidgetItem(str(self.arts[index].publishedtime)))
+        # self.artInfTable.setItem(17, 0, QTableWidgetItem(str(self.arts[index].online_published)))
+        # self.artInfTable.setItem(18, 0, QTableWidgetItem(str(self.arts[index].print_published)))
+        # self.artInfTable.setItem(19, 0, QTableWidgetItem(str(self.arts[index].posted)))
+        # self.artInfTable.setItem(20, 0, QTableWidgetItem(str(self.arts[index].accepted)))
 
     def renovatebuttonclick(self):
-        self.titletexteditChanged()
+        self.titletextreturnPressed()
 
     def transcheckselect(self):
         istrans=self.transcheck.isChecked()
         self.trans=istrans
         if istrans:
             self.statusBar().showMessage("启用检索翻译功能会降低检索速度")
+        self.savesetting()
 
     def savepathbuttonclicked(self):
         path = QFileDialog.getExistingDirectory(self, "请选择文章保存目录")
         if path != "":
             self.savepath = path
             # temppath, tempfilename = os.path.split(self.savepathachepath)
-            if (not os.path.exists(self.savepathachepath)):
-                os.makedirs(self.savepathachepath)
+            # print(os.path.exists(self.savepathachepath))
+            # print(not os.path.exists(self.savepathachepath))
+            # if (not os.path.exists(self.savepathachepath)):
+            #     os.makedirs(self.savepathachepath)
             with open(self.savepathachepath, "wb") as file:
                 pickle.dump(self.savepath, file, True)
+            self.savepathlineedit.setText(self.savepath)
+
 
     def updateurls(self):
         if self.updateurling:
             self.statusBar().showMessage("线路更新线程已在运行...")
             return
         self.updateurling=True
-        self.urlsable=[]
+        self.urlsable.clear()
         self.urls=dict()
         # self.channellistTable.removeColumn(2)
 
@@ -549,11 +705,11 @@ class main(QMainWindow):
             self.urls[url] = time
             index = self.allurls.index(url) + 2
             if time < 9999:
-                self.urlsable.append(url)
+                self.urlsable[url] = time
 
         if time<9999:
             self.channellistTable.setItem(index, 1, QTableWidgetItem(str(time)+"s"))
-            self.statusBar().showMessage(url+"线路连接成功！（连接时间"+str(time)+"s）")
+            # self.statusBar().showMessage(url+"线路连接成功！（连接时间"+str(time)+"s）")
             print(url+"线路连接成功！（连接时间"+str(time)+"s）")
             self.channellistTable.item(index, 1).setBackground(QtGui.QColor(80, 255, 80))
         elif time==10000:
@@ -568,7 +724,7 @@ class main(QMainWindow):
             print(url+"线路超时！")
             self.channellistTable.item(index, 1).setBackground(QtGui.QColor(255, 80, 80))
         if len(self.urls)==len(self.allurls):
-            self.statusBar().showMessage("线路更新完成！（可用"+str(len(self.urlsable))+"/"+str(len(self.allurls))+")")
+            # self.statusBar().showMessage("线路更新完成！（可用"+str(len(self.urlsable))+"/"+str(len(self.allurls))+")")
             self.updateurling=False
 
     def downloadbuttonclick(self):
@@ -579,7 +735,7 @@ class main(QMainWindow):
         if len(self.urlsable) == 0:
             self.statusBar().showMessage("请更新线路信息！")
             return
-        url = min(self.urls, key=lambda x: self.urls[x])
+        url = sorted(self.urlsable, key=lambda x: self.urlsable[x])
         self.savefilethread = savefilethread(url, art, self.savepath)
         self.savefilethread.messageSingle.connect(self.statusBar().showMessage)
         self.savefilethread.enddingSingle.connect(self.savefileend)
@@ -588,11 +744,31 @@ class main(QMainWindow):
         self.savefilethread.codeimageSingle.connect(self.showcode)
         self.savefilethread.start()
 
-    def timeouteditPressed(self):
+    def timeouttextChanged(self):
         self.timeout=float(self.timeoutedit.text())
+        self.savesetting()
         self.statusBar().showMessage("线路测试超时时间已更新为 " + str(self.timeout) + "s" )
 
+    def elemnumperpagelistIndexChanged(self,index):
+        self.elemperpageindex=int(index)
+        self.savesetting()
+        # self.elemnumperpagelist.setCurrentIndex(index-1)
+        self.statusBar().showMessage("每页检索数量已更新为 " + str(index+1) + "个" )
 
+    def starttimeindexchanged(self,index):
+        self.starttimeindex=index
+        self.savesetting()
+        # self.statusBar().showMessage("检索起始日期已更新")
+
+    def endtimeindexchanged(self,index):
+        self.endtimeindex=index
+        self.savesetting()
+        # self.statusBar().showMessage("检索终止日期已更新为")
+
+    def timeselecttypeindexchanged(self,index):
+        self.timeselecttypeindex=index
+        self.savesetting()
+        # self.statusBar().showMessage("检索时间类型已更新")
 
     def showcode(self,image):
         # res = requests.get(image)
@@ -640,14 +816,30 @@ class main(QMainWindow):
             for i,art in enumerate(artlist):
                 self.statusBar().showMessage("正在加载数据 "+str(i+1)+"/"+str(len(artlist)))
                 self.artlistTable.setItem(i, 0, QTableWidgetItem(str(art.title)))
+            self.updateartInfTable(artlist[0])
+            # self.artInfTable.clearContents()
+            # self.artInfTable.setItem(0, 0, QTableWidgetItem(str(artlist[0].title)))
+            # self.artInfTable.setItem(1, 0, QTableWidgetItem(str(artlist[0].chinesetitle)))
+            # self.artInfTable.setItem(2, 0, QTableWidgetItem(str(artlist[0].authors)))
+            # self.artInfTable.setItem(3, 0, QTableWidgetItem(str(artlist[0].createdtime)))
+            # self.artInfTable.setItem(4, 0, QTableWidgetItem(str(artlist[0].extra)))
+            # self.artInfTable.setItem(5, 0, QTableWidgetItem(str(artlist[0].doi)))
+            # self.artInfTable.setItem(6, 0, QTableWidgetItem(str(artlist[0].reference_count)))
+            # self.artInfTable.setItem(7, 0, QTableWidgetItem(str(artlist[0].is_reference_count)))
+            # self.artInfTable.setItem(8, 0, QTableWidgetItem(str(artlist[0].type)))
+            # self.artInfTable.setItem(9, 0, QTableWidgetItem(str(artlist[0].source)))
+            # self.artInfTable.setItem(10, 0, QTableWidgetItem(str(artlist[0].arturl)))
+            # self.artInfTable.setItem(11, 0, QTableWidgetItem(str(artlist[0].abstracttrans)))
+            # self.artInfTable.setItem(12, 0, QTableWidgetItem(str(artlist[0].indextime)))
+            # self.artInfTable.setItem(13, 0, QTableWidgetItem(str(artlist[0].deposittime)))
+            # self.artInfTable.setItem(14, 0, QTableWidgetItem(str(artlist[0].updatetime)))
+            # self.artInfTable.setItem(15, 0, QTableWidgetItem(str(artlist[0].createdtime)))
+            # self.artInfTable.setItem(16, 0, QTableWidgetItem(str(artlist[0].publishedtime)))
+            # self.artInfTable.setItem(17, 0, QTableWidgetItem(str(artlist[0].online_published)))
+            # self.artInfTable.setItem(18, 0, QTableWidgetItem(str(artlist[0].print_published)))
+            # self.artInfTable.setItem(19, 0, QTableWidgetItem(str(artlist[0].posted)))
+            # self.artInfTable.setItem(20, 0, QTableWidgetItem(str(artlist[0].accepted)))
 
-            self.artInfTable.clearContents()
-            self.artInfTable.setItem(0, 0, QTableWidgetItem(str(artlist[0].title)))
-            self.artInfTable.setItem(1, 0, QTableWidgetItem(str(artlist[0].chinesetitle)))
-            self.artInfTable.setItem(2, 0, QTableWidgetItem(str(artlist[0].authors)))
-            self.artInfTable.setItem(3, 0, QTableWidgetItem(str(artlist[0].extra)))
-            self.artInfTable.setItem(4, 0, QTableWidgetItem(str(artlist[0].doi)))
-            self.artInfTable.setItem(5, 0, QTableWidgetItem(str(artlist[0].arturl)))
             self.statusBar().showMessage("检索成功!")
         else:
             self.statusBar().showMessage("检索失败!")
@@ -679,6 +871,34 @@ class main(QMainWindow):
         self.saveachethread.messageSingle.connect(self.statusBar().showMessage)
         # self.saveachethread.enddingSingle.connect(self.getartend)
         self.saveachethread.start()
+
+    def savesetting(self):
+        self.setting=dict()
+        self.setting["trans"]=self.trans
+        self.setting["elemperpage"]=self.elemperpageindex
+        self.setting["starttime"]=self.starttimeindex
+        self.setting["endtime"]=self.endtimeindex
+        self.setting["timeselecttype"]=self.timeselecttypeindex
+        self.setting["timeout"]=self.timeout
+        with open(self.settingpath, "wb") as file:
+            pickle.dump(self.setting, file, True)
+
+    def loadsetting(self):
+        if os.path.exists(self.settingpath):
+            try:
+                settingfile = open(self.settingpath, 'rb')
+                setting = pickle.load(settingfile)
+                settingfile.close()
+                self.trans = setting["trans"]
+                self.elemperpageindex = setting["elemperpage"]
+                self.starttimeindex = setting["starttime"]
+                self.endtimeindex = setting["endtime"]
+                self.timeselecttypeindex = setting["timeselecttype"]
+                self.timeout = setting["timeout"]
+                # self.statusBar().showMessage("已加载缓存信息！")
+            except Exception as a:
+                print("读取设置信息错误"+str(a))
+            # print("已加载缓存信息！")
 
     def loadache(self):
         if os.path.exists(self.achepath):
