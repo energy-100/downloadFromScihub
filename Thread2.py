@@ -22,6 +22,8 @@ from bs4 import BeautifulSoup
 
 from google_trans_new import google_translator
 
+from multiprocessing.dummy import Pool as ThreadPool
+
 os.environ['REQUESTS_CA_BUNDLE'] =  os.path.join(os.path.dirname(sys.argv[0]), 'cacert.pem')
 # from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from resumable import urlretrieve
@@ -325,6 +327,7 @@ class transThread(QThread):
     def __init__(self,art:artobject,translator):
         self.art=art
         self.translator=translator
+        # self.pool = ThreadPool(8)
         super(transThread, self).__init__()
     def run(self):
         # self.progressvisualSingle.emit(True)
@@ -347,8 +350,10 @@ class transThread(QThread):
             if len(tempparagraph)>1000:
                 # translator = Translator()
                 try:
-                    chineseword += self.translator.translate(tempparagraph[0:(len(tempparagraph)-len(sentence))], 'zh-CN')
                     # chineseword += self.translator.translate(tempparagraph[0:(len(tempparagraph)-len(sentence))], 'zh-CN').text
+                    # tmpstr=self.pool.map(self.request, str(tempparagraph[0:(len(tempparagraph)-len(sentence))]))
+                    # chineseword = chineseword.join(tmpstr)
+                    chineseword += self.translator.translate(tempparagraph[0:(len(tempparagraph)-len(sentence))], 'zh-CN')
                 except Exception as e:
                     print(e)
                     self.messageSingle.emit("翻译线路超时，请检查网络连接或稍后重试！(" + str(e) + ")")
@@ -360,7 +365,8 @@ class transThread(QThread):
         except Exception as e:
             print(e)
             self.messageSingle.emit("翻译线路超时，请检查网络连接或稍后重试！(" + str(e) + ")")
-        print()
+        # self.pool.close()
+        # self.pool.join()
         documentchs = Document()                          # 打开一个基于默认“模板”的空白文档
         # documentchs.add_heading(self.art.title, 0)      # 添加标题
         p = documentchs.add_paragraph(chineseword)
@@ -378,6 +384,13 @@ class transThread(QThread):
         # self.progressvisualSingle.emit(False)
         self.messageSingle.emit("文本翻译完成！")
         self.enddingSingle.emit()
+
+    # def request(self,text):
+    #     lang = 'zh-CN'
+    #     # t = google_translator(timeout=5)
+    #     translate_text = self.translator.translate(text.strip(), lang)
+    #     return translate_text
+
 
 class getartThread(QThread):
     messageSingle = QtCore.pyqtSignal(str)

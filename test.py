@@ -2,6 +2,7 @@ import requests
 from PIL import Image
 from io import BytesIO
 import os
+import numpy as np
 import sys
 from functools import reduce
 from PyQt5.QtGui import *
@@ -22,6 +23,11 @@ from docx import Document
 import urllib3
 from googletrans import Translator
 from bs4 import BeautifulSoup
+a=[22,55,99]
+b=[]
+b.extend(a)
+print(b)
+
 os.environ['REQUESTS_CA_BUNDLE'] =  os.path.join(os.path.dirname(sys.argv[0]), 'cacert.pem')
 # from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from resumable import urlretrieve
@@ -49,7 +55,9 @@ headers = {
 #
 # parent = os.path.dirname(os.path.realpath(path))
 # print(parent)
-
+print(np.mean([1,2,3,4,5,6,7,8,9]))
+filename = os.path.split("D:/PyCharm_GitHub_local_Repository/downloadFromScihub/savefile")[1]
+print(filename)
 from google_trans_new import google_translator
 
 translator = google_translator()
